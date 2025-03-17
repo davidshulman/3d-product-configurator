@@ -13,5 +13,10 @@
     "id": "#product_fbx",
     "label": "FBX Model",
     "path": "/products/fbx_sample/index.json"
+  },
+  {
+    "id": "#product_shed",
+    "label": "Garden Shed",
+    "path": "/products/shed/index.json"
   }
 ]

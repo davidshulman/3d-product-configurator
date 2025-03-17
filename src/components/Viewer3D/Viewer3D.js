@@ -291,21 +291,33 @@ function Viewer3D(props) {
       }
     }
 
-    function render() {
-      renderRequested = false
-      resizeRendererToDisplaySize()
-      cameraController.update()
-      renderer.render(scene, camera)
-      if (composer) composer.render(clock.getDelta())
-    }
-
     function requestRenderIfNotRequested() {
       if (!renderRequested) {
         renderRequested = true
         requestAnimationFrame(render)
       }
     }
-    g_render_scene = requestRenderIfNotRequested
+
+    function render() {
+      renderRequested = false
+      
+      // Make sure the renderer size matches the canvas
+      resizeRendererToDisplaySize()
+      
+      // Update controls 
+      cameraController.update();
+
+      // Only use composer if it's been initialized
+      if (composer) {
+        composer.render(clock.getDelta())
+      } else {
+        renderer.render(scene, camera)
+      }
+    }
+
+    g_render_scene = () => {
+      render();
+    }
 
     /**
      * Renderer
@@ -389,6 +401,11 @@ function Viewer3D(props) {
     cameraController.enableDamping = true
     cameraController.enableZoom = true
     cameraController.enablePan = false
+    
+    // Ensure the controller is active and takes precedence
+    cameraController.enabled = true;
+    cameraController.update();
+    
     g_camera_controller = cameraController
 
     /**
@@ -407,6 +424,8 @@ function Viewer3D(props) {
       if (g_is_load_model) {
         camera.position.set(-SPACE_SIZE * 0.2, SPACE_SIZE, SPACE_SIZE)
         camera.lookAt(0, 0, 0)
+          
+        // Keep the basic fit
         FitCameraToSelection(camera, g_model_root, 6, cameraController)
         g_is_load_model = false
       }
@@ -565,6 +584,13 @@ function Viewer3D(props) {
                   const pivot = new THREE.Object3D();
                   pivot.name = node.id;
                   
+                  // Apply special handling for shed model
+                  const isShed = modelPath.includes('shed.glb');
+                  if (isShed) {
+                    // No special handling per pivot - we're rotating the whole scene instead
+                    console.log('Using scene-level rotation for shed model');
+                  }
+                  
                   // Find meshes that match the node's candidate meshes
                   node.candidateMeshes.forEach(json => {
                     const fbxMesh = findMeshByName(fbx, json.id);
@@ -628,7 +654,13 @@ function Viewer3D(props) {
                   
                   // Create a default pivot
                   const defaultPivot = new THREE.Object3D();
-                  defaultPivot.name = 'default';
+                  defaultPivot.name = productStore.productData.nodes[0]?.id || 'default';
+                  
+                  // Apply special handling for shed model
+                  const isShed = modelPath.includes('shed.glb');
+                  if (isShed) {
+                    console.log('Using scene-level rotation for shed model');
+                  }
                   
                   // Add all meshes to the default pivot
                   fbx.traverse(child => {
@@ -734,39 +766,109 @@ function Viewer3D(props) {
             );
           } else {
             // Load GLTF/GLB model (existing code)
+            console.log('Starting GLTF/GLB loader for:', modelPath);
             g_gltf_loader.load(
               modelPath,
               gltf => {
+                console.log('GLB/GLTF loaded successfully:', gltf);
                 if (gltf.scene) {
+                  console.log('GLTF scene:', gltf.scene);
+                  
+                  // Check if this is the shed model and fix orientation
+                  const isShed = modelPath.includes('shed.glb');
+                  if (isShed) {
+                    console.log('Fixing shed orientation - simplified approach');
+                    
+                    // We'll use a simpler approach - rotate just the scene
+                    gltf.scene.rotation.x = -Math.PI / 2;
+                    
+                    // Set a reasonable position
+                    gltf.scene.position.y = -1;
+                  }
+                  
                   //Get gltf mesh
                   const gltfMeshes = []
                   gltf.scene.traverse(child => {
                     if (child.type === "Mesh") {
+                      console.log('Found mesh in GLB:', {
+                        name: child.name,
+                        type: child.type
+                      });
                       child.castShadow = true
                       gltfMeshes.push(child)
                     }
                   })
+                  
+                  console.log('Found meshes in GLB:', gltfMeshes.map(mesh => mesh.name));
+                  console.log('Configuration nodes:', productStore.productData.nodes);
 
                   //Generate the model structure
+                  let meshesAdded = false;
                   productStore.productData.nodes.forEach(node => {
+                    console.log('Processing node:', node.id);
                     const pivot = new THREE.Object3D()
                     pivot.name = node.id
+                    
+                    // Apply special handling for shed model
+                    const isShed = modelPath.includes('shed.glb');
+                    if (isShed) {
+                      console.log('Using scene-level rotation for shed model');
+                    }
+                    
                     node.candidateMeshes.forEach(json => {
+                      console.log('Looking for mesh:', json.id);
                       const gltfMesh = gltfMeshes.find(mesh => mesh.name === json.id)
                       if (gltfMesh) {
+                        console.log('Found matching mesh:', gltfMesh.name);
                         gltfMesh.visible = gltfMesh.name === node.defaultMesh
                         pivot.add(gltfMesh)
+                        meshesAdded = true;
+                      } else {
+                        console.warn('Mesh not found for:', json.id);
                       }
                     })
                     g_model_root.add(pivot)
                   })
 
-                  //Set data for selected mesh
-                  const meshData = []
-                  productStore.productData.nodes.forEach(node => {
-                    meshData.push({nodeId: node.id, meshId: node.defaultMesh})
-                  })
-                  setSelectedMeshData(meshData)
+                  // If no meshes were added based on the configuration, add all meshes as a fallback
+                  if (!meshesAdded) {
+                    console.log('No meshes matched configuration. Adding all meshes as fallback...');
+                    
+                    // Create a default pivot
+                    const defaultPivot = new THREE.Object3D();
+                    defaultPivot.name = productStore.productData.nodes[0]?.id || 'default';
+                    
+                    // Rotate the pivot if this is the shed model
+                    if (modelPath.includes('shed.glb')) {
+                      defaultPivot.rotation.x = -Math.PI / 2;
+                    }
+                    
+                    // Add all meshes to the default pivot
+                    gltfMeshes.forEach(mesh => {
+                      console.log('Adding fallback mesh:', mesh.name);
+                      mesh.visible = true;
+                      defaultPivot.add(mesh);
+                    });
+                    
+                    // Add the default pivot to the model root
+                    g_model_root.add(defaultPivot);
+                    
+                    // Create a default mesh data entry
+                    const defaultMeshData = [{
+                      nodeId: defaultPivot.name,
+                      meshId: gltfMeshes[0]?.name || 'default'
+                    }];
+                    
+                    console.log('Setting default mesh data:', defaultMeshData);
+                    setSelectedMeshData(defaultMeshData);
+                  } else {
+                    //Set data for selected mesh
+                    const meshData = []
+                    productStore.productData.nodes.forEach(node => {
+                      meshData.push({nodeId: node.id, meshId: node.defaultMesh})
+                    })
+                    setSelectedMeshData(meshData)
+                  }
 
                   //Set default material
                   g_model_root.children.forEach(child => {
@@ -783,9 +885,26 @@ function Viewer3D(props) {
                       setNodeMaterial(child, data)
                     })
                   })
+                } else {
+                  console.error('No scene found in the GLB file');
                 }
+              },
+              progress => {
+                console.log('GLB/GLTF loading progress:', {
+                  loaded: progress.loaded,
+                  total: progress.total,
+                  percent: (progress.loaded / progress.total * 100).toFixed(2) + '%'
+                });
+              },
+              error => {
+                console.error('Error loading GLB/GLTF:', error);
+                console.error('Error details:', {
+                  message: error.message,
+                  stack: error.stack
+                });
+                setShowLoader(false);
               }
-            )
+            );
           }
         })
     }

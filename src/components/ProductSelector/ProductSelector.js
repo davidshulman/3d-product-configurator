@@ -37,6 +37,7 @@ const ProductSelector = props => {
   })
 
   useEffect(() => {
+    console.log('Current product data changed:', productStore.currentProductData);
     if (productStore.currentProductData) {
       getCurrentProductData(productStore.currentProductData.path)
     } else {
@@ -48,6 +49,7 @@ const ProductSelector = props => {
   }, [productStore.currentProductData])
 
   useEffect(() => {
+    console.log('Getting product data list');
     getProductDataList()
   }, [])
 
