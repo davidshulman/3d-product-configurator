@@ -46,12 +46,12 @@ function Header() {
               className={classes.logo}
             />
             <Typography variant="h6" className={classes.title}>
-              3D Product Configurator Pro
+            3D מוצר עם SIG Team - Customize your products in 3D
             </Typography>
           </div>
           <div className={classes.rightSection}>
             <Typography variant="subtitle1">
-              Design & Customize in Real-Time
+            3D מוצר עם SIG Team - Customize your products in 3D
             </Typography>
           </div>
         </Toolbar>
