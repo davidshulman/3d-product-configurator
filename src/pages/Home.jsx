@@ -53,6 +53,7 @@ const StyledPaper = styled(Paper)`
   background-color: rgba(255, 255, 255, 0.9);
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #2e7d32; /* Add green accent */
 `
 
 const MaterialSettingHolder = styled.div`
@@ -64,6 +65,7 @@ const MaterialSettingHolder = styled.div`
   background-color: rgba(255, 255, 255, 0.9);
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #2e7d32; /* Add green accent */
 `
 
 const MaterialSelectHolder = styled.div`
@@ -75,4 +77,5 @@ const MaterialSelectHolder = styled.div`
   background-color: rgba(255, 255, 255, 0.9);
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #2e7d32; /* Add green accent */
 `

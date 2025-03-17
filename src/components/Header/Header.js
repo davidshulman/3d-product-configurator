@@ -9,7 +9,7 @@ const useStyles = makeStyles((theme) => ({
     flexGrow: 1,
   },
   appBar: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#2e7d32',
     color: '#ffffff',
   },
   toolbar: {
@@ -46,12 +46,12 @@ function Header() {
               className={classes.logo}
             />
             <Typography variant="h6" className={classes.title}>
-              3D Product Configurator
+              3D Product Configurator Pro
             </Typography>
           </div>
           <div className={classes.rightSection}>
             <Typography variant="subtitle1">
-              Customize Your Products in 3D SIG Team
+              Design & Customize in Real-Time
             </Typography>
           </div>
         </Toolbar>

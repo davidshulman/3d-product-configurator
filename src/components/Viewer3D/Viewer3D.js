@@ -500,9 +500,13 @@ function Viewer3D(props) {
       // Check if the model is FBX or GLTF/GLB
       const modelPath = productStore.productData[productStore.currentDracoVersion] || productStore.productData.model;
       
+      console.log('Product Data:', productStore.productData);
+      console.log('Model Path:', modelPath);
+      
       // Verify that the model file exists
       fetch(modelPath)
         .then(response => {
+          console.log('Model file fetch response:', response.status, response.statusText);
           if (!response.ok) {
             throw new Error(`Model file not found: ${modelPath}`);
           }
@@ -512,20 +516,50 @@ function Viewer3D(props) {
           
           if (isFBX) {
             // Load FBX model
+            console.log('Starting FBX loader...');
             g_fbx_loader.load(
               modelPath,
               fbx => {
                 console.log('FBX loaded successfully:', fbx);
+                console.log('FBX structure:', {
+                  name: fbx.name,
+                  type: fbx.type,
+                  children: fbx.children.map(child => ({
+                    name: child.name,
+                    type: child.type
+                  }))
+                });
+                
+                // Scale and position the model appropriately
+                // FBX models often need scaling adjustments
+                fbx.scale.set(0.01, 0.01, 0.01); // Scale down by default, adjust as needed
+                fbx.position.set(0, 0, 0); // Center the model
+                
                 // Apply shadows to all meshes
                 fbx.traverse(child => {
                   if (child.isMesh) {
-                    console.log('Found mesh in FBX:', child.name);
+                    console.log('Found mesh in FBX:', {
+                      name: child.name,
+                      geometry: child.geometry ? {
+                        vertices: child.geometry.attributes.position.count,
+                        uvs: child.geometry.attributes.uv ? child.geometry.attributes.uv.count : 'none'
+                      } : 'none',
+                      material: child.material ? {
+                        name: child.material.name,
+                        type: child.material.type
+                      } : 'none'
+                    });
                     child.castShadow = true;
                     child.receiveShadow = true;
                   }
                 });
                 
                 // Generate the model structure
+                console.log('Processing nodes from config:', productStore.productData.nodes);
+                
+                // Keep track of whether any meshes were added
+                let meshesAdded = false;
+                
                 productStore.productData.nodes.forEach(node => {
                   console.log('Processing node:', node.id);
                   const pivot = new THREE.Object3D();
@@ -534,25 +568,133 @@ function Viewer3D(props) {
                   // Find meshes that match the node's candidate meshes
                   node.candidateMeshes.forEach(json => {
                     const fbxMesh = findMeshByName(fbx, json.id);
-                    console.log('Looking for mesh:', json.id, 'Found:', !!fbxMesh);
+                    console.log('Looking for mesh:', {
+                      id: json.id,
+                      found: !!fbxMesh,
+                      meshDetails: fbxMesh ? {
+                        name: fbxMesh.name,
+                        type: fbxMesh.type
+                      } : null
+                    });
                     if (fbxMesh) {
+                      meshesAdded = true;
                       fbxMesh.visible = fbxMesh.name === node.defaultMesh;
-                      pivot.add(fbxMesh.clone()); // Clone to avoid reference issues
+                      
+                      // Clone the mesh to avoid reference issues
+                      const clonedMesh = fbxMesh.clone();
+                      
+                      // Ensure the mesh has the correct name
+                      clonedMesh.name = json.id;
+                      
+                      // Add the mesh to the pivot
+                      pivot.add(clonedMesh);
+                      
+                      console.log('Added mesh to pivot:', {
+                        pivotName: pivot.name,
+                        meshName: clonedMesh.name,
+                        visible: clonedMesh.visible
+                      });
+                    } else {
+                      // If mesh not found by exact name, try a fuzzy match
+                      console.log('Trying fuzzy match for mesh:', json.id);
+                      let fuzzyMatch = null;
+                      fbx.traverse(child => {
+                        if (child.isMesh && child.name.toLowerCase().includes(json.id.toLowerCase())) {
+                          fuzzyMatch = child;
+                          console.log('Found fuzzy match:', child.name);
+                        }
+                      });
+                      
+                      if (fuzzyMatch) {
+                        fuzzyMatch.visible = fuzzyMatch.name === node.defaultMesh;
+                        const clonedMesh = fuzzyMatch.clone();
+                        clonedMesh.name = json.id;
+                        pivot.add(clonedMesh);
+                        console.log('Added fuzzy matched mesh to pivot:', {
+                          pivotName: pivot.name,
+                          meshName: clonedMesh.name,
+                          visible: clonedMesh.visible
+                        });
+                      }
                     }
                   });
                   
                   g_model_root.add(pivot);
                 });
                 
+                // If no meshes were added based on the configuration, add all meshes as a fallback
+                if (!meshesAdded) {
+                  console.log('No meshes matched configuration. Adding all meshes as fallback...');
+                  
+                  // Create a default pivot
+                  const defaultPivot = new THREE.Object3D();
+                  defaultPivot.name = 'default';
+                  
+                  // Add all meshes to the default pivot
+                  fbx.traverse(child => {
+                    if (child.isMesh) {
+                      console.log('Adding fallback mesh:', child.name);
+                      const clonedMesh = child.clone();
+                      defaultPivot.add(clonedMesh);
+                    }
+                  });
+                  
+                  // Add the default pivot to the model root
+                  g_model_root.add(defaultPivot);
+                  
+                  // Create a default mesh data entry
+                  const defaultMeshData = [{
+                    nodeId: 'default',
+                    meshId: 'default'
+                  }];
+                  
+                  console.log('Setting default mesh data:', defaultMeshData);
+                  setSelectedMeshData(defaultMeshData);
+                }
+                
                 // Set data for selected mesh
                 const meshData = [];
                 productStore.productData.nodes.forEach(node => {
                   meshData.push({nodeId: node.id, meshId: node.defaultMesh});
                 });
-                setSelectedMeshData(meshData);
+                console.log('Setting mesh data:', meshData);
+                
+                // Only set mesh data if we didn't use the fallback
+                if (meshesAdded) {
+                  setSelectedMeshData(meshData);
+                }
+                
+                // Make sure the model is visible in the camera view
+                setTimeout(() => {
+                  console.log('Adjusting camera to fit model...');
+                  // Create a bounding box for the entire model
+                  const box = new THREE.Box3().setFromObject(g_model_root);
+                  const center = box.getCenter(new THREE.Vector3());
+                  const size = box.getSize(new THREE.Vector3());
+                  
+                  // Get the max side of the bounding box
+                  const maxSize = Math.max(size.x, size.y, size.z);
+                  const fitHeightDistance = maxSize / (2 * Math.tan(Math.PI * g_camera.fov / 360));
+                  const fitWidthDistance = fitHeightDistance / g_camera.aspect;
+                  const distance = 1.2 * Math.max(fitHeightDistance, fitWidthDistance);
+                  
+                  // Set the camera position and look at the center of the model
+                  g_camera.position.set(center.x, center.y, center.z + distance);
+                  g_camera.lookAt(center);
+                  g_camera.updateProjectionMatrix();
+                  
+                  // Request a render
+                  g_render_scene();
+                  console.log('Camera adjusted:', {
+                    position: g_camera.position,
+                    lookAt: center,
+                    distance: distance
+                  });
+                }, 1000);
                 
                 // Set default material
                 g_model_root.children.forEach(child => {
+                  console.log('Setting material for node:', child.name);
                   const material = new THREE.MeshStandardMaterial({
                     color: "#363636"
                   });
@@ -564,7 +706,11 @@ function Viewer3D(props) {
                   )?.defaultMaterial;
                   
                   if (materialData?.path) {
-                    console.log('Applying material:', materialData.path);
+                    console.log('Applying material:', {
+                      node: child.name,
+                      materialPath: materialData.path,
+                      materialData: materialData
+                    });
                     fetchMaterialData(materialData.path).then(data => {
                       setNodeMaterial(child, data);
                     });
@@ -572,10 +718,18 @@ function Viewer3D(props) {
                 });
               },
               progress => {
-                console.log('FBX loading progress:', progress);
+                console.log('FBX loading progress:', {
+                  loaded: progress.loaded,
+                  total: progress.total,
+                  percent: (progress.loaded / progress.total * 100).toFixed(2) + '%'
+                });
               },
               error => {
                 console.error('Error loading FBX:', error);
+                console.error('Error details:', {
+                  message: error.message,
+                  stack: error.stack
+                });
               }
             );
           } else {
