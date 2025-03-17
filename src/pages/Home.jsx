@@ -11,10 +11,10 @@ import MaterialSettings from "../components/MaterialSettings/MaterialSettings"
 
 export default function Home() {
   return (
-    <>
+    <MainContainer>
       <StyledPaper>
-        <DracoSelector />
         <ProductSelector />
+        <DracoSelector />
         <NodeSelector />
         <MeshSelector />
       </StyledPaper>
@@ -24,32 +24,55 @@ export default function Home() {
       <MaterialSelectHolder>
         <MaterialSelector />
       </MaterialSelectHolder>
-      <Viewer3D />
-    </>
+      <ViewerContainer>
+        <Viewer3D />
+      </ViewerContainer>
+    </MainContainer>
   )
 }
 
+const MainContainer = styled.div`
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 64px); /* Subtract header height */
+  overflow: hidden;
+`
+
+const ViewerContainer = styled.div`
+  width: 100%;
+  height: 100%;
+`
+
 const StyledPaper = styled(Paper)`
-    padding: 0.5em;
-    position: absolute;
-    top: 1em;
-    left: 1em;
-    z-index: 1;
-    width: min-content;
+  padding: 0.5em;
+  position: absolute;
+  top: 1em;
+  left: 1em;
+  z-index: 1;
+  width: min-content;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 `
 
 const MaterialSettingHolder = styled.div`
   padding: 1em;
-    position: absolute;
-    top: 1em;
-    right: 2em;
-    z-index: 1;
+  position: absolute;
+  top: 1em;
+  right: 2em;
+  z-index: 1;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 `
 
 const MaterialSelectHolder = styled.div`
-    padding: 0.5em;
-    position: absolute;
-    bottom: 1em;
-    left: 1em;
-    z-index: 1;
+  padding: 0.5em;
+  position: absolute;
+  bottom: 1em;
+  left: 1em;
+  z-index: 1;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 `

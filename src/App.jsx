@@ -8,6 +8,7 @@ import appTheme from "./theme"
 import {persistor, store} from "./redux/Store"
 import {ROUTE_HOMEPAGE} from "./constants"
 import Home from "./pages/Home"
+import Header from "./components/Header"
 
 const App = () => {
   return (
@@ -16,6 +17,7 @@ const App = () => {
         <PersistGate loading={null} persistor={persistor}>
           <ThemeProvider theme={appTheme}>
             <BrowserRouter>
+              <Header />
               <Switch>
                 <Route exact path={ROUTE_HOMEPAGE} component={Home} />
               </Switch>
