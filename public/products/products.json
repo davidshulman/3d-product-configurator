@@ -8,5 +8,10 @@
     "id": "#product_66",
     "label": "Hoodie",
     "path": "/products/hoodie/index.json"
+  },
+  {
+    "id": "#product_fbx",
+    "label": "FBX Model",
+    "path": "/products/fbx_sample/index.json"
   }
 ]

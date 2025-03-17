@@ -8,6 +8,25 @@
 
 https://user-images.githubusercontent.com/46432435/229830235-b14330ce-c47c-4d05-8074-119891ccb7b8.mp4
 
+## Features
+
+- 3D product visualization and customization
+- Material and texture swapping
+- Part replacement
+- Supports GLB/GLTF and FBX models
+- Environment mapping
+- Realistic lighting and shadows
+- Responsive design
+
+## FBX Support
+
+This version includes support for FBX models. To use FBX models:
+
+1. Place your FBX model in a product folder
+2. Configure the product in the index.json file
+3. Add the product to the products.json list
+
+For detailed instructions, see the [FBX Guide](public/products/fbx_sample/README.md).
 
 ## Install
 

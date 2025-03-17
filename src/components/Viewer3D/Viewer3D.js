@@ -6,6 +6,7 @@ import * as THREE from "three"
 import * as POSTPROCESSING from "postprocessing"
 import {RGBELoader} from "three/examples/jsm/loaders/RGBELoader"
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader"
+import {FBXLoader} from "three/examples/jsm/loaders/FBXLoader"
 import {DRACOLoader} from "three/examples/jsm/loaders/DRACOLoader"
 import {PMREMGenerator} from "three/src/extras/PMREMGenerator"
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls"
@@ -27,6 +28,7 @@ let g_render
 let g_render_scene
 let g_selected_node
 let g_gltf_loader
+let g_fbx_loader
 let g_texture_loader
 let g_rgbe_loader
 let g_is_load_model = false
@@ -43,6 +45,17 @@ function Viewer3D(props) {
   } = props
   const canvasContainer = useRef(null)
   const [showLoader, setShowLoader] = useState(true)
+
+  // Helper function to find a mesh by name in an FBX model
+  function findMeshByName(fbxModel, meshName) {
+    let foundMesh = null;
+    fbxModel.traverse(child => {
+      if (child.isMesh && child.name === meshName) {
+        foundMesh = child;
+      }
+    });
+    return foundMesh;
+  }
 
   function setNodeMaterial(node, materialData) {
     if (node && materialData) {
@@ -412,6 +425,10 @@ function Viewer3D(props) {
     const textureLoader = new THREE.TextureLoader(gltfLoadingManager)
     g_texture_loader = textureLoader
 
+    // Initialize FBX loader
+    const fbxLoader = new FBXLoader(gltfLoadingManager)
+    g_fbx_loader = fbxLoader
+
     //Load smaa images
     const smaaImageLoader = new POSTPROCESSING.SMAAImageLoader(
       gltfLoadingManager
@@ -479,58 +496,121 @@ function Viewer3D(props) {
     //Load models
     if (productStore.productData) {
       g_is_load_model = true
-      g_gltf_loader.load(
-        productStore.productData[productStore.currentDracoVersion],
-        gltf => {
-          if (gltf.scene) {
-            //Get gltf mesh
-            const gltfMeshes = []
-            gltf.scene.traverse(child => {
-              if (child.type === "Mesh") {
-                child.castShadow = true
-                gltfMeshes.push(child)
+      
+      // Check if the model is FBX or GLTF/GLB
+      const modelPath = productStore.productData[productStore.currentDracoVersion] || productStore.productData.model;
+      const isFBX = modelPath.toLowerCase().endsWith('.fbx');
+      
+      if (isFBX) {
+        // Load FBX model
+        g_fbx_loader.load(
+          modelPath,
+          fbx => {
+            // Apply shadows to all meshes
+            fbx.traverse(child => {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
               }
-            })
-
-            //Generate the model structure
+            });
+            
+            // Generate the model structure
             productStore.productData.nodes.forEach(node => {
-              const pivot = new THREE.Object3D()
-              pivot.name = node.id
+              const pivot = new THREE.Object3D();
+              pivot.name = node.id;
+              
+              // Find meshes that match the node's candidate meshes
               node.candidateMeshes.forEach(json => {
-                const gltfMesh = gltfMeshes.find(mesh => mesh.name === json.id)
-                if (gltfMesh) {
-                  gltfMesh.visible = gltfMesh.name === node.defaultMesh
-                  pivot.add(gltfMesh)
+                const fbxMesh = findMeshByName(fbx, json.id);
+                if (fbxMesh) {
+                  fbxMesh.visible = fbxMesh.name === node.defaultMesh;
+                  pivot.add(fbxMesh.clone()); // Clone to avoid reference issues
                 }
-              })
-              g_model_root.add(pivot)
-            })
-
-            //Set data for selected mesh
-            const meshData = []
+              });
+              
+              g_model_root.add(pivot);
+            });
+            
+            // Set data for selected mesh
+            const meshData = [];
             productStore.productData.nodes.forEach(node => {
-              meshData.push({nodeId: node.id, meshId: node.defaultMesh})
-            })
-            setSelectedMeshData(meshData)
-
-            //Set default material
+              meshData.push({nodeId: node.id, meshId: node.defaultMesh});
+            });
+            setSelectedMeshData(meshData);
+            
+            // Set default material
             g_model_root.children.forEach(child => {
               const material = new THREE.MeshStandardMaterial({
                 color: "#363636"
-              })
-              material.envMap = g_scene.environment
-              child.material = material
-
+              });
+              material.envMap = g_scene.environment;
+              child.material = material;
+              
               const materialData = productStore.productData.nodes.find(
                 node => node.id === child.name
-              )?.defaultMaterial
+              )?.defaultMaterial;
+              
               fetchMaterialData(materialData?.path).then(data => {
-                setNodeMaterial(child, data)
-              })
-            })
+                setNodeMaterial(child, data);
+              });
+            });
           }
-        }
-      )
+        );
+      } else {
+        // Load GLTF/GLB model (existing code)
+        g_gltf_loader.load(
+          modelPath,
+          gltf => {
+            if (gltf.scene) {
+              //Get gltf mesh
+              const gltfMeshes = []
+              gltf.scene.traverse(child => {
+                if (child.type === "Mesh") {
+                  child.castShadow = true
+                  gltfMeshes.push(child)
+                }
+              })
+
+              //Generate the model structure
+              productStore.productData.nodes.forEach(node => {
+                const pivot = new THREE.Object3D()
+                pivot.name = node.id
+                node.candidateMeshes.forEach(json => {
+                  const gltfMesh = gltfMeshes.find(mesh => mesh.name === json.id)
+                  if (gltfMesh) {
+                    gltfMesh.visible = gltfMesh.name === node.defaultMesh
+                    pivot.add(gltfMesh)
+                  }
+                })
+                g_model_root.add(pivot)
+              })
+
+              //Set data for selected mesh
+              const meshData = []
+              productStore.productData.nodes.forEach(node => {
+                meshData.push({nodeId: node.id, meshId: node.defaultMesh})
+              })
+              setSelectedMeshData(meshData)
+
+              //Set default material
+              g_model_root.children.forEach(child => {
+                const material = new THREE.MeshStandardMaterial({
+                  color: "#363636"
+                })
+                material.envMap = g_scene.environment
+                child.material = material
+
+                const materialData = productStore.productData.nodes.find(
+                  node => node.id === child.name
+                )?.defaultMaterial
+                fetchMaterialData(materialData?.path).then(data => {
+                  setNodeMaterial(child, data)
+                })
+              })
+            }
+          }
+        )
+      }
     }
     g_render_scene()
   }, [productStore.productData, productStore.currentDracoVersion])
